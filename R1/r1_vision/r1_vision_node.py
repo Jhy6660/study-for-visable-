@@ -140,11 +140,6 @@ class R1VisionNode(Node):
         self._stable_grasp_counter = 0
         self._last_sent_grasp = None
         self._last_sent_normal = None
-        self.lidar_prefilter_enable = bool(params['lidar_prefilter_enable'])
-        self.lidar_min_range_m = float(params['lidar_min_range_m'])
-        self.lidar_max_range_m = float(params['lidar_max_range_m'])
-        self.lidar_max_abs_y_m = float(params['lidar_max_abs_y_m'])
-        self.lidar_max_abs_z_m = float(params['lidar_max_abs_z_m'])
         
         # 性能控制
         self.frame_skip_count = 0
@@ -358,12 +353,6 @@ class R1VisionNode(Node):
         self.declare_parameter('grasp_confidence_threshold', 0.60)
         self.declare_parameter('grasp_min_confirm_frames', 2)
         self.declare_parameter('camera_only_confidence', 0.55)
-        # 雷达点云预过滤（先在雷达坐标系做简单空间裁剪，避免“全量点”进入后续流程）
-        self.declare_parameter('lidar_prefilter_enable', True)
-        self.declare_parameter('lidar_min_range_m', 0.2)
-        self.declare_parameter('lidar_max_range_m', 4.0)
-        self.declare_parameter('lidar_max_abs_y_m', 2.5)
-        self.declare_parameter('lidar_max_abs_z_m', 2.0)
         # TF缺失时是否降级发送camera_link坐标（而不丢弃）
         self.declare_parameter('fallback_send_without_tf', True)
         self.declare_parameter('lidar_msg_type', 'custom') # 'custom' for Livox CustomMsg, 'pointcloud2' for standard PointCloud2
@@ -433,11 +422,6 @@ class R1VisionNode(Node):
             'grasp_confidence_threshold': float(self.get_parameter('grasp_confidence_threshold').value),
             'grasp_min_confirm_frames': int(self.get_parameter('grasp_min_confirm_frames').value),
             'camera_only_confidence': float(self.get_parameter('camera_only_confidence').value),
-            'lidar_prefilter_enable': self.get_parameter('lidar_prefilter_enable').value,
-            'lidar_min_range_m': float(self.get_parameter('lidar_min_range_m').value),
-            'lidar_max_range_m': float(self.get_parameter('lidar_max_range_m').value),
-            'lidar_max_abs_y_m': float(self.get_parameter('lidar_max_abs_y_m').value),
-            'lidar_max_abs_z_m': float(self.get_parameter('lidar_max_abs_z_m').value),
             'fallback_send_without_tf': self.get_parameter('fallback_send_without_tf').value in (True, 'true', 'True', '1', 1),
             'lidar_msg_type': self.get_parameter('lidar_msg_type').value,
         }
