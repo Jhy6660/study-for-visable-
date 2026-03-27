@@ -27,7 +27,7 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `topic_imu`: `/livox/imu`
 - `topic_odom`: `/Odometry`
 
-说明：相机内参当前是硬编码，不依赖 `camera_info` 订阅。算法内部仍使用相机**光学坐标系**（Z前/X右/Y下）进行像素投影与深度反投影。
+说明：相机内参当前是硬编码，不依赖 `camera_info` 订阅。
 
 ### 2.2 主流程逻辑
 - 同步回调里做检测、点云读取、预过滤、融合定位、抓取计算。
@@ -35,7 +35,6 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
   - 先做雷达预过滤（range/y/z）
   - 再做 Frustum 截取与前景深度门限
   - 再做统计离群点过滤
-- 仅在 YOLO 检测到目标后才执行抓取发送链路；无检测时发送 `none`，不再走预测抓取下发。
 
 ### 2.3 Launch 启动行为
 - `r1_vision.launch.py`：仅启动 r1_vision 节点。
@@ -50,7 +49,6 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `process_every_n_frames`
 - `adaptive_frame_skip`
 - `target_processing_ms`
-- `target_output_frame`（默认 `base_link`，可改成 `map` / `odom`）
 
 ### 3.2 雷达预过滤（先控算力和噪声）
 - `lidar_prefilter_enable`（默认 true）
@@ -58,26 +56,16 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `lidar_max_range_m`（默认 4.0）
 - `lidar_max_abs_y_m`（默认 2.5）
 - `lidar_max_abs_z_m`（默认 2.0）
-- `lidar_voxel_enable`（默认 true）
-- `lidar_voxel_size`（默认 0.03m）
 
-### 3.3 外参与坐标系（当前默认）
-- `config/tf_config.yaml -> lidar_to_camera` 默认按“相机在雷达右侧 10cm”给出位移。
-- 若使用 `matrix` + `translation` 同时配置，代码会用 `translation` 覆盖矩阵平移列，便于现场快速改位移。
-- 注意：为保证深度/像素几何正确，当前主算法仍按相机光学系计算；如需全链路改为 mid360 轴定义，需同步改投影与反投影公式。
-
-### 3.4 融合与几何
+### 3.3 融合与几何
 - `use_pointcloud_fusion`
-- `fusion_adaptive_enable`（默认 true）
-- `fusion_disable_processing_ms`（默认 140）
-- `fusion_enable_processing_ms`（默认 95）
 - `fusion_max_distance`
 - `fusion_min_confidence`
 - `frustum_min_points`（默认 15）
 - `frustum_min_cube_points`（默认 15）
 - `cube_side_length`
 
-### 3.5 抓取稳定闸门
+### 3.4 抓取稳定闸门
 - `grasp_consistency_enable`
 - `grasp_confidence_threshold`
 - `grasp_max_jump_m`
