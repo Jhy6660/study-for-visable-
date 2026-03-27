@@ -706,6 +706,14 @@ class R1VisionNode(Node):
             self.get_logger().warn(f'雷达点云处理失败: {e}')
             self._handle_no_detection(rgb_msg.header.stamp)
             return
+
+        # 先做雷达点云预过滤，避免全量点进入融合/定位流程
+        if lidar_points_array is not None and len(lidar_points_array) > 0:
+            lidar_points_array = self._prefilter_lidar_points(lidar_points_array)
+            if len(lidar_points_array) == 0:
+                self.get_logger().warn('雷达预过滤后无有效点，跳过本帧')
+                self._handle_no_detection(rgb_msg.header.stamp)
+                return
         
         # 计算3D位置 (基于纯视觉兜底，不一定成功，但需要传入)
         position_3d = self._compute_3d_position(
@@ -1193,6 +1201,35 @@ class R1VisionNode(Node):
         except Exception as e:
             self.get_logger().warn(f'提取相机点云失败: {e}')
             return None
+
+    def _prefilter_lidar_points(self, lidar_points: np.ndarray) -> np.ndarray:
+        """雷达点云预过滤：范围/高度/横向裁剪，减少全量点干扰与算力开销。"""
+        if not self.lidar_prefilter_enable or lidar_points is None or len(lidar_points) == 0:
+            return lidar_points
+
+        try:
+            pts = lidar_points
+            x = pts[:, 0]
+            y = pts[:, 1]
+            z = pts[:, 2]
+            r = np.sqrt(x * x + y * y + z * z)
+
+            mask = (
+                np.isfinite(x) & np.isfinite(y) & np.isfinite(z) &
+                (r >= self.lidar_min_range_m) &
+                (r <= self.lidar_max_range_m) &
+                (np.abs(y) <= self.lidar_max_abs_y_m) &
+                (np.abs(z) <= self.lidar_max_abs_z_m)
+            )
+            filtered = pts[mask]
+            self.get_logger().info(
+                f'雷达预过滤: {len(pts)} -> {len(filtered)} 点',
+                throttle_duration_sec=1.0,
+            )
+            return filtered
+        except Exception as e:
+            self.get_logger().warn(f'雷达预过滤异常，回退原始点云: {e}')
+            return lidar_points
 
 
 def main(args=None):
