@@ -6,9 +6,8 @@ R1 Vision启动文件
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 import os
 from ament_index_python.packages import get_package_share_directory
 
@@ -43,9 +42,7 @@ def generate_launch_description():
             description='IMU话题（mid360）'),
         DeclareLaunchArgument('topic_odom', default_value='/Odometry',
             description='里程计话题'),
-        DeclareLaunchArgument('topic_camera_info', default_value='/camera/camera/color/camera_info',
-            description='相机内参话题'),
-        DeclareLaunchArgument('sync_slop', default_value='0.05',
+        DeclareLaunchArgument('sync_slop', default_value='0.03',
             description='时间同步容差（秒）'),
         DeclareLaunchArgument('lidar_msg_type', default_value='custom',
             description='雷达消息类型 (custom 或 pointcloud2)'),
@@ -78,7 +75,6 @@ def generate_launch_description():
             'topic_lidar_points': LaunchConfiguration('topic_lidar_points'),
             'topic_imu': LaunchConfiguration('topic_imu'),
             'topic_odom': LaunchConfiguration('topic_odom'),
-            'topic_camera_info': LaunchConfiguration('topic_camera_info'),
             'sync_slop': LaunchConfiguration('sync_slop'),
             'lidar_msg_type': LaunchConfiguration('lidar_msg_type'),
             'r1_config_file': LaunchConfiguration('r1_config_file'),
