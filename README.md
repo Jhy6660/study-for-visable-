@@ -35,7 +35,6 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
   - 先做雷达预过滤（range/y/z）
   - 再做 Frustum 截取与前景深度门限
   - 再做统计离群点过滤
-- 仅在 YOLO 检测到目标后才执行抓取发送链路；无检测时发送 `none`，不再走预测抓取下发。
 
 ### 2.3 Launch 启动行为
 - `r1_vision.launch.py`：仅启动 r1_vision 节点。
@@ -57,14 +56,9 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `lidar_max_range_m`（默认 4.0）
 - `lidar_max_abs_y_m`（默认 2.5）
 - `lidar_max_abs_z_m`（默认 2.0）
-- `lidar_voxel_enable`（默认 true）
-- `lidar_voxel_size`（默认 0.03m）
 
 ### 3.3 融合与几何
 - `use_pointcloud_fusion`
-- `fusion_adaptive_enable`（默认 true）
-- `fusion_disable_processing_ms`（默认 140）
-- `fusion_enable_processing_ms`（默认 95）
 - `fusion_max_distance`
 - `fusion_min_confidence`
 - `frustum_min_points`（默认 15）
