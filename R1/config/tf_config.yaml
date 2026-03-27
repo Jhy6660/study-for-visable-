@@ -1,0 +1,120 @@
+# R1 Vision TF配置文件
+
+# 坐标系定义
+frames:
+  # 世界坐标系
+  world_frame: "map"
+
+  # 机器人坐标系
+  base_frame: "base_link"
+
+  # 相机坐标系
+  camera_frame: "camera_link"
+
+  # 雷达坐标系 (Livox mid360)
+  lidar_frame: "body"  # FAST-LIO 发布的 body frame（IMU/LiDAR body）
+
+# 静态TF变换
+# ⚠️ 需要用户根据实际安装位置调整以下参数
+static_transforms:
+  # 相机到基座的变换
+  # ⚠️ 需要测量相机相对于base_link的实际位置
+  camera_to_base:
+    parent: "base_link"
+    child: "camera_link"
+    translation: [0.0, 0.0, 0.2]  # x, y, z (米) - ⚠️ 需要调整
+    rotation: [0.0, 0.0, 0.0]      # roll, pitch, yaw (弧度) - ⚠️ 需要调整
+
+  # 雷达到基座的变换 (Livox mid360 / FAST-LIO body frame)
+  # ⚠️ 需要测量雷达相对于base_link的实际位置
+  lidar_to_base:
+    parent: "base_link"
+    child: "body"
+    translation: [0.0, 0.0, 0.0]   # x, y, z (米) - ⚠️ 需要调整（body与base_link同原点时填0）
+    rotation: [0.0, 0.0, 0.0]     # roll, pitch, yaw (弧度) - ⚠️ 需要调整
+
+# 话题配置
+topics:
+  # FAST-LIO话题
+  fast_lio:
+    odometry: "/Odometry"
+    path: "/path"
+    pointcloud: "/cloud_registered"
+
+  # Livox mid360 雷达话题
+  livox:
+    lidar: "/livox/lidar"
+    imu: "/livox/imu"
+
+  # 相机话题
+  camera:
+    rgb_image: "/camera/camera/color/image_raw"
+    depth_image: "/camera/camera/aligned_depth_to_color/image_raw"
+    camera_info: "/camera/camera/color/camera_info"
+    pointcloud: "/camera/camera/depth/color/points"
+
+  # R1 Vision话题
+  r1_vision:
+    detection: "/r1_vision/detections"
+    grasp_position: "/r1_vision/grasp_position"
+    normal_marker: "/r1_vision/normal_marker"
+    grasp_marker: "/r1_vision/grasp_marker"
+    gravity_marker: "/r1_vision/gravity_marker"
+    status: "/r1_vision/status"
+
+# 重力向量配置
+gravity:
+  # 世界坐标系下的重力向量
+  world_gravity: [0.0, 0.0, -1.0]
+
+  # 重力向量更新频率 (Hz)
+  update_rate: 10.0
+
+  # 重力向量平滑参数
+  smoothing:
+    enable: true
+    alpha: 0.1  # 指数移动平均系数
+
+# 硬件配置
+# ⚠️ 需要用户根据实际情况调整
+hardware:
+  camera:
+    model: "D415"
+    # 相机安装角度 (弧度)
+    # ⚠️ 需要测量相机相对于base_link的安装角度
+    mount_angle:
+      pitch: 0.0  # 俯仰角 - ⚠️ 需要调整
+      yaw: 0.0    # 偏航角 - ⚠️ 需要调整
+      roll: 0.0   # 翻滚角 - ⚠️ 需要调整
+    coordinate_frame:
+      name: "camera_link"
+      parent_frame: "base_link"
+  
+  lidar:
+    model: "Livox_mid360"
+    coordinate_frame:
+      name: "body"   # FAST-LIO 发布的 body frame
+      parent_frame: "base_link"
+
+# 雷达到相机外参（camera_link）：用于点云融合与融合定位中的雷达点变换
+# ⚠️ mid360 坐标系：X前 Y左 Z上（与 Robosense Airy 相同）
+# 默认旋转：雷达坐标系转相机光学坐标系（Z前 X右 Y下）
+# p_cam = R @ p_lidar + t。请使用手眼标定工具获取精准的 matrix 或 translation/rotation_rpy。
+lidar_to_camera:
+  translation: [0.0, 0.0, 0.0]
+  # 默认的旋转矩阵：雷达坐标系转相机光学坐标系
+  matrix:
+    - [0.0, -1.0,  0.0, 0.0]
+    - [0.0,  0.0, -1.0, 0.0]
+    - [1.0,  0.0,  0.0, 0.0]
+    - [0.0,  0.0,  0.0, 1.0]
+
+# 抓取参数
+grasp:
+
+  cube_side_length: 0.35  
+  
+  # 法向量估计参数
+  normal_estimation:
+    window_size: 7
+    angle_threshold: 45.0  # 度

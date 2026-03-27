@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>r1_vision</name>
+  <version>2.0.0</version>
+  <description>R1模块化视觉检测系统 - 基于YOLO和深度相机的目标检测与跟踪</description>
+  
+  <maintainer email="developer@example.com">R1 Developer</maintainer>
+  <license>MIT</license>
+  
+  <url type="website">https://github.com/example/r1_vision</url>
+  <url type="bugtracker">https://github.com/example/r1_vision/issues</url>
+  <url type="repository">https://github.com/example/r1_vision</url>
+
+  <author email="developer@example.com">R1 Developer</author>
+
+  <!-- Python构建工具 -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Python依赖 -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+
+  <!-- ROS2依赖 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <!-- 测试依赖 -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

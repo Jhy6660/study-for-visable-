@@ -1,0 +1,34 @@
+# 重构后的YOLO视觉系统依赖
+
+# 核心依赖
+numpy>=1.21.0
+opencv-python>=4.5.0
+PyYAML>=6.0
+
+# ROS2依赖
+rclpy
+sensor-msgs
+geometry-msgs
+cv-bridge
+tf2-ros
+message-filters
+
+# 深度学习
+torch>=1.12.0
+torchvision>=0.13.0
+ultralytics>=8.0.0
+
+# 串口通信
+pyserial>=3.5
+
+# 可选依赖（性能优化）
+# tensorrt  # NVIDIA TensorRT（需要单独安装）
+# onnx>=1.12.0  # ONNX模型转换
+# onnxruntime-gpu>=1.12.0  # ONNX推理
+
+# 开发和测试
+pytest>=7.0.0
+pytest-benchmark>=4.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991
