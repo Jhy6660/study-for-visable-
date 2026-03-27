@@ -16,7 +16,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from sensor_msgs.msg import Image, CameraInfo, PointCloud2, Imu
+from sensor_msgs.msg import Image, PointCloud2, Imu
 from geometry_msgs.msg import PointStamped, Point
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker
@@ -53,11 +53,10 @@ from .tracking import KalmanTracker
 from .comms import SerialComm
 from .gravity_estimation import GravityEstimatorIMU, GravityEstimator
 from .pointcloud_fusion import PointCloudFusion
-from .cube_localization import CubeLocalization, MultiCandidateGrasp
+from .cube_localization import CubeLocalization
 from rclpy.time import Time
 
 from .utils import (
-    validate_camera_params,
     setup_device,
     cleanup_gpu,
     PerformanceMonitor,
@@ -228,7 +227,6 @@ class R1VisionNode(Node):
         self.cube_side_length = params['cube_side_length']
         # 立方体融合定位器（方案3：相机+雷达融合）
         self.cube_localization = CubeLocalization(cube_side_length=self.cube_side_length)
-        self.multi_candidate_grasp = MultiCandidateGrasp(cube_side_length=self.cube_side_length)
         self.use_fusion_localization = params['use_fusion_localization']
         
         # 法向量估计器（带平滑，使用配置参数）
@@ -1030,18 +1028,7 @@ class R1VisionNode(Node):
         self._stable_grasp_counter = 0
         if self.use_kalman and self.tracker is not None:
             with self.tracker_lock:
-                if self.tracker.is_valid():
-                    predicted_pos = self.tracker.predict()
-                    with self.gravity_lock:
-                        g = self.current_gravity_vector_cam.copy()
-                    grasp_pos = compute_grasp_position_improved(
-                        predicted_pos, np.array([0.0, 0.0, -1.0]),
-                        cube_side_length=self.cube_side_length,
-                        gravity=g,
-                    )
-                    self._send_position_with_tf(grasp_pos, timestamp)
-                    return
-                else:
+                if not self.tracker.is_valid():
                     self.tracker = None
         
         # 发送无目标消息

@@ -20,9 +20,6 @@ def generate_launch_description():
     r1_vision_dir = get_package_share_directory('r1_vision')
     fast_lio_dir = get_package_share_directory('fast_lio')
 
-    # 配置文件路径（mid360）
-    fast_lio_config = os.path.join(fast_lio_dir, 'config', 'mid360.yaml')
-
     # 声明启动参数
     model_path_arg = DeclareLaunchArgument(
         'model_path',
