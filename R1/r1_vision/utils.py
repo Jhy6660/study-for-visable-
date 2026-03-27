@@ -234,6 +234,11 @@ def parse_lidar_to_camera_transform(cfg: Dict[str, Any]) -> np.ndarray:
         M = np.array(cfg['matrix'], dtype=np.float64)
         if M.shape != (4, 4):
             raise ValueError('lidar_to_camera.matrix must be 4x4')
+        # 兼容：若同时给了 translation，则用其覆盖矩阵平移列（便于现场只改位移）
+        if 'translation' in cfg and cfg['translation'] is not None:
+            t = np.array(cfg.get('translation', [0.0, 0.0, 0.0]), dtype=np.float64).reshape(3)
+            M = M.copy()
+            M[:3, 3] = t
         return M
 
     t = np.array(cfg.get('translation', [0.0, 0.0, 0.0]), dtype=np.float64).reshape(3)
