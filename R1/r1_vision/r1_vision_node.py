@@ -131,6 +131,20 @@ class R1VisionNode(Node):
         self.frustum_min_cube_points = int(params['frustum_min_cube_points'])
         self.frustum_foreground_depth_range = float(params['frustum_foreground_depth_range'])
         self.frustum_foreground_depth_percentile = float(params['frustum_foreground_depth_percentile'])
+        self.enable_grasp_consistency_gate = bool(params['grasp_consistency_enable'])
+        self.grasp_max_jump_m = float(params['grasp_max_jump_m'])
+        self.grasp_max_normal_angle_deg = float(params['grasp_max_normal_angle_deg'])
+        self.grasp_confidence_threshold = float(params['grasp_confidence_threshold'])
+        self.grasp_min_confirm_frames = max(1, int(params['grasp_min_confirm_frames']))
+        self.camera_only_confidence = float(params['camera_only_confidence'])
+        self._stable_grasp_counter = 0
+        self._last_sent_grasp = None
+        self._last_sent_normal = None
+        self.lidar_prefilter_enable = bool(params['lidar_prefilter_enable'])
+        self.lidar_min_range_m = float(params['lidar_min_range_m'])
+        self.lidar_max_range_m = float(params['lidar_max_range_m'])
+        self.lidar_max_abs_y_m = float(params['lidar_max_abs_y_m'])
+        self.lidar_max_abs_z_m = float(params['lidar_max_abs_z_m'])
         
         # 性能控制
         self.frame_skip_count = 0
@@ -288,7 +302,7 @@ class R1VisionNode(Node):
         self.declare_parameter('topic_imu', '/livox/imu')              # mid360
         self.declare_parameter('topic_odom', '/Odometry')
         # 同步参数
-        self.declare_parameter('sync_slop', 0.05)
+        self.declare_parameter('sync_slop', 0.03)
         # 模型与串口
         self.declare_parameter('model_path', '$(find-pkg-share r1_vision)/models/best.pt')
         self.declare_parameter('serial_port', '/dev/ttyUSB0')
@@ -331,12 +345,25 @@ class R1VisionNode(Node):
         # 融合：深度加权（0=关闭，0.3~1.0 常见）
         self.declare_parameter('fusion_depth_weight_scale', 0.5)
         # 法向：帧间夹角超过则重置平滑窗口（0=关闭）
-        self.declare_parameter('normal_max_interframe_angle_deg', 55.0)
+        self.declare_parameter('normal_max_interframe_angle_deg', 40.0)
         self.declare_parameter('frustum_bbox_shrink_ratio', 0.1)
-        self.declare_parameter('frustum_min_points', 10)
-        self.declare_parameter('frustum_min_cube_points', 10)
+        self.declare_parameter('frustum_min_points', 15)
+        self.declare_parameter('frustum_min_cube_points', 15)
         self.declare_parameter('frustum_foreground_depth_range', 0.3)
         self.declare_parameter('frustum_foreground_depth_percentile', 35.0)
+        # 发送稳定性增强参数（动态场景）
+        self.declare_parameter('grasp_consistency_enable', True)
+        self.declare_parameter('grasp_max_jump_m', 0.12)
+        self.declare_parameter('grasp_max_normal_angle_deg', 30.0)
+        self.declare_parameter('grasp_confidence_threshold', 0.60)
+        self.declare_parameter('grasp_min_confirm_frames', 2)
+        self.declare_parameter('camera_only_confidence', 0.55)
+        # 雷达点云预过滤（先在雷达坐标系做简单空间裁剪，避免“全量点”进入后续流程）
+        self.declare_parameter('lidar_prefilter_enable', True)
+        self.declare_parameter('lidar_min_range_m', 0.2)
+        self.declare_parameter('lidar_max_range_m', 4.0)
+        self.declare_parameter('lidar_max_abs_y_m', 2.5)
+        self.declare_parameter('lidar_max_abs_z_m', 2.0)
         # TF缺失时是否降级发送camera_link坐标（而不丢弃）
         self.declare_parameter('fallback_send_without_tf', True)
         self.declare_parameter('lidar_msg_type', 'custom') # 'custom' for Livox CustomMsg, 'pointcloud2' for standard PointCloud2
@@ -400,6 +427,17 @@ class R1VisionNode(Node):
             'frustum_foreground_depth_percentile': float(
                 self.get_parameter('frustum_foreground_depth_percentile').value
             ),
+            'grasp_consistency_enable': self.get_parameter('grasp_consistency_enable').value,
+            'grasp_max_jump_m': float(self.get_parameter('grasp_max_jump_m').value),
+            'grasp_max_normal_angle_deg': float(self.get_parameter('grasp_max_normal_angle_deg').value),
+            'grasp_confidence_threshold': float(self.get_parameter('grasp_confidence_threshold').value),
+            'grasp_min_confirm_frames': int(self.get_parameter('grasp_min_confirm_frames').value),
+            'camera_only_confidence': float(self.get_parameter('camera_only_confidence').value),
+            'lidar_prefilter_enable': self.get_parameter('lidar_prefilter_enable').value,
+            'lidar_min_range_m': float(self.get_parameter('lidar_min_range_m').value),
+            'lidar_max_range_m': float(self.get_parameter('lidar_max_range_m').value),
+            'lidar_max_abs_y_m': float(self.get_parameter('lidar_max_abs_y_m').value),
+            'lidar_max_abs_z_m': float(self.get_parameter('lidar_max_abs_z_m').value),
             'fallback_send_without_tf': self.get_parameter('fallback_send_without_tf').value in (True, 'true', 'True', '1', 1),
             'lidar_msg_type': self.get_parameter('lidar_msg_type').value,
         }
@@ -684,6 +722,14 @@ class R1VisionNode(Node):
             self.get_logger().warn(f'雷达点云处理失败: {e}')
             self._handle_no_detection(rgb_msg.header.stamp)
             return
+
+        # 先做雷达点云预过滤，避免全量点进入融合/定位流程
+        if lidar_points_array is not None and len(lidar_points_array) > 0:
+            lidar_points_array = self._prefilter_lidar_points(lidar_points_array)
+            if len(lidar_points_array) == 0:
+                self.get_logger().warn('雷达预过滤后无有效点，跳过本帧')
+                self._handle_no_detection(rgb_msg.header.stamp)
+                return
         
         # 计算3D位置 (基于纯视觉兜底，不一定成功，但需要传入)
         position_3d = self._compute_3d_position(
@@ -887,6 +933,7 @@ class R1VisionNode(Node):
         # ==================== 5. 结果合并 (Blending) ====================
         final_center = None
         final_normal = None
+        result_confidence = 0.0
         
         if lidar_valid and camera_valid:
             # 都有数据时进行加权融合
@@ -900,17 +947,20 @@ class R1VisionNode(Node):
             # 合并法向量 (需要归一化)
             blended_normal = weight_lidar * lidar_normal + weight_camera * camera_normal
             final_normal = blended_normal / np.linalg.norm(blended_normal)
+            result_confidence = float(np.clip(0.5 * lidar_confidence + 0.5, 0.0, 1.0))
             
             self.get_logger().info(f'🔄 雷达与深度图双重融合: 雷达置信度 {lidar_confidence:.2f}')
             
         elif lidar_valid:
             final_center = lidar_center
             final_normal = lidar_normal
+            result_confidence = float(np.clip(lidar_confidence, 0.0, 1.0))
             self.get_logger().info(f'🎯 仅雷达有效: 雷达置信度 {lidar_confidence:.2f}')
             
         elif camera_valid:
             final_center = position_3d
             final_normal = camera_normal
+            result_confidence = float(np.clip(self.camera_only_confidence, 0.0, 1.0))
             self.get_logger().info('⚠️ 仅深度图有效，使用纯视觉兜底')
             
         else:
@@ -968,14 +1018,20 @@ class R1VisionNode(Node):
         self.get_logger().info(
             f'误差估计: {error_info["total_error"]*1000:.1f}mm'
         )
-        
+
+        if not self._grasp_passes_stability_gate(grasp_position, final_normal, result_confidence):
+            return
+
         if validate_position(grasp_position):
             self._send_position_with_tf(grasp_position, timestamp)
+            self._last_sent_grasp = grasp_position.copy()
+            self._last_sent_normal = final_normal.copy()
         else:
             self.get_logger().warn(f'位置超出范围: {format_position(grasp_position)}')
     
     def _handle_no_detection(self, timestamp):
         """处理无检测情况"""
+        self._stable_grasp_counter = 0
         if self.use_kalman and self.tracker is not None:
             with self.tracker_lock:
                 if self.tracker.is_valid():
@@ -994,6 +1050,62 @@ class R1VisionNode(Node):
         
         # 发送无目标消息
         self.serial_comm.send_message('none\n')
+
+    def _grasp_passes_stability_gate(
+        self,
+        grasp_position: np.ndarray,
+        normal: np.ndarray,
+        confidence: float,
+    ) -> bool:
+        """
+        发送前稳定性闸门：
+        1) 置信度低于阈值不发送；
+        2) 与上一帧已发送结果相比，位移/法向突变过大不发送；
+        3) 需要连续 N 帧满足条件后才发送。
+        """
+        if not self.enable_grasp_consistency_gate:
+            return True
+
+        if confidence < self.grasp_confidence_threshold:
+            self._stable_grasp_counter = 0
+            self.get_logger().warn(
+                f'闸门阻止发送：置信度 {confidence:.2f} < {self.grasp_confidence_threshold:.2f}',
+                throttle_duration_sec=0.5,
+            )
+            return False
+
+        if self._last_sent_grasp is not None:
+            jump = float(np.linalg.norm(grasp_position - self._last_sent_grasp))
+            if jump > self.grasp_max_jump_m:
+                self._stable_grasp_counter = 0
+                self.get_logger().warn(
+                    f'闸门阻止发送：位置跳变 {jump:.3f}m > {self.grasp_max_jump_m:.3f}m',
+                    throttle_duration_sec=0.5,
+                )
+                return False
+
+        if self._last_sent_normal is not None:
+            n1 = normal / max(np.linalg.norm(normal), 1e-9)
+            n2 = self._last_sent_normal / max(np.linalg.norm(self._last_sent_normal), 1e-9)
+            dotp = float(np.clip(np.abs(np.dot(n1, n2)), 0.0, 1.0))
+            angle = float(np.degrees(np.arccos(dotp)))
+            if angle > self.grasp_max_normal_angle_deg:
+                self._stable_grasp_counter = 0
+                self.get_logger().warn(
+                    f'闸门阻止发送：法向跳变 {angle:.1f}° > {self.grasp_max_normal_angle_deg:.1f}°',
+                    throttle_duration_sec=0.5,
+                )
+                return False
+
+        self._stable_grasp_counter += 1
+        if self._stable_grasp_counter < self.grasp_min_confirm_frames:
+            self.get_logger().info(
+                f'闸门等待确认帧: {self._stable_grasp_counter}/{self.grasp_min_confirm_frames}',
+                throttle_duration_sec=0.5,
+            )
+            return False
+
+        return True
     
     def _send_position_with_tf(self, position: np.ndarray, timestamp):
         """TF转换并发送位置"""
@@ -1105,6 +1217,35 @@ class R1VisionNode(Node):
         except Exception as e:
             self.get_logger().warn(f'提取相机点云失败: {e}')
             return None
+
+    def _prefilter_lidar_points(self, lidar_points: np.ndarray) -> np.ndarray:
+        """雷达点云预过滤：范围/高度/横向裁剪，减少全量点干扰与算力开销。"""
+        if not self.lidar_prefilter_enable or lidar_points is None or len(lidar_points) == 0:
+            return lidar_points
+
+        try:
+            pts = lidar_points
+            x = pts[:, 0]
+            y = pts[:, 1]
+            z = pts[:, 2]
+            r = np.sqrt(x * x + y * y + z * z)
+
+            mask = (
+                np.isfinite(x) & np.isfinite(y) & np.isfinite(z) &
+                (r >= self.lidar_min_range_m) &
+                (r <= self.lidar_max_range_m) &
+                (np.abs(y) <= self.lidar_max_abs_y_m) &
+                (np.abs(z) <= self.lidar_max_abs_z_m)
+            )
+            filtered = pts[mask]
+            self.get_logger().info(
+                f'雷达预过滤: {len(pts)} -> {len(filtered)} 点',
+                throttle_duration_sec=1.0,
+            )
+            return filtered
+        except Exception as e:
+            self.get_logger().warn(f'雷达预过滤异常，回退原始点云: {e}')
+            return lidar_points
 
 
 def main(args=None):
