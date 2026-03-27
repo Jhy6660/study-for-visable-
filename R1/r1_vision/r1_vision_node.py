@@ -223,6 +223,7 @@ class R1VisionNode(Node):
         self.fusion_max_distance = float(params['fusion_max_distance'])
         self.fusion_min_confidence = float(params['fusion_min_confidence'])
         self.fusion_depth_weight_scale = float(params['fusion_depth_weight_scale'])
+        self.target_output_frame = str(params['target_output_frame']).strip() or 'base_link'
         
         self.cube_side_length = params['cube_side_length']
         # 立方体融合定位器（方案3：相机+雷达融合）
@@ -330,6 +331,8 @@ class R1VisionNode(Node):
         self.declare_parameter('use_normal_smoothing', True)
         self.declare_parameter('normal_window_size', 5)
         self.declare_parameter('normal_angle_threshold', 45.0)
+        # 最终下发坐标系（默认 base_link，可按需改为 map/odom 等）
+        self.declare_parameter('target_output_frame', 'base_link')
         # TF 失败或重力未就绪时，相机系下的重力方向（单位向量近似，将归一化）
         self.declare_parameter('gravity_fallback_cam', [0.0, 0.0, -1.0])
         self.declare_parameter('use_fusion_localization', True)
@@ -402,6 +405,7 @@ class R1VisionNode(Node):
             'use_normal_smoothing': self.get_parameter('use_normal_smoothing').value,
             'normal_window_size': self.get_parameter('normal_window_size').value,
             'normal_angle_threshold': self.get_parameter('normal_angle_threshold').value,
+            'target_output_frame': self.get_parameter('target_output_frame').value,
             'gravity_fallback_cam': list(self.get_parameter('gravity_fallback_cam').value),
             'use_fusion_localization': self.get_parameter('use_fusion_localization').value,
             'cube_side_length': float(self.get_parameter('cube_side_length').value),
@@ -1091,7 +1095,7 @@ class R1VisionNode(Node):
         return True
     
     def _send_position_with_tf(self, position: np.ndarray, timestamp):
-        """TF转换并发送位置"""
+        """TF转换到目标坐标系并发送位置"""
         point = PointStamped()
         point.header.frame_id = 'camera_link'
         point.header.stamp = timestamp
@@ -1101,7 +1105,7 @@ class R1VisionNode(Node):
         
         try:
             transformed_point = self.tf_buffer.transform(
-                point, 'base_link', timeout=rclpy.duration.Duration(seconds=0.1)
+                point, self.target_output_frame, timeout=rclpy.duration.Duration(seconds=0.1)
             )
             
             final_pos = [
@@ -1117,7 +1121,7 @@ class R1VisionNode(Node):
             if self.log_counter % self.log_every_n_sends == 0:
                 stats = self.performance_monitor.get_stats()
                 self.get_logger().info(
-                    f'发送位置: {format_position(np.array(final_pos))} | '
+                    f'发送位置({self.target_output_frame}): {format_position(np.array(final_pos))} | '
                     f'推理: {stats["avg_inference_ms"]:.1f}ms | '
                     f'回调处理: {stats["avg_processing_ms"]:.1f}ms | '
                     f'消息延迟: {stats["avg_callback_latency_ms"]:.1f}ms | '
