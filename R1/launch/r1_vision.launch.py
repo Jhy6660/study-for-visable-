@@ -78,7 +78,6 @@ def generate_launch_description():
             'topic_lidar_points': LaunchConfiguration('topic_lidar_points'),
             'topic_imu': LaunchConfiguration('topic_imu'),
             'topic_odom': LaunchConfiguration('topic_odom'),
-            'topic_camera_info': LaunchConfiguration('topic_camera_info'),
             'sync_slop': LaunchConfiguration('sync_slop'),
             'lidar_msg_type': LaunchConfiguration('lidar_msg_type'),
             'r1_config_file': LaunchConfiguration('r1_config_file'),
