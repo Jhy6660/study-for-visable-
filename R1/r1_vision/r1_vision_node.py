@@ -217,6 +217,10 @@ class R1VisionNode(Node):
                 '请设置参数 r1_config_file 或安装包内 config'
             )
         self.use_pointcloud_fusion = params['use_pointcloud_fusion']  # 是否使用点云融合
+        self.fusion_adaptive_enable = bool(params['fusion_adaptive_enable'])
+        self.fusion_disable_processing_ms = float(params['fusion_disable_processing_ms'])
+        self.fusion_enable_processing_ms = float(params['fusion_enable_processing_ms'])
+        self._fusion_runtime_enabled = bool(self.use_pointcloud_fusion)
         self.fusion_max_distance = float(params['fusion_max_distance'])
         self.fusion_min_confidence = float(params['fusion_min_confidence'])
         self.fusion_depth_weight_scale = float(params['fusion_depth_weight_scale'])
@@ -319,6 +323,9 @@ class R1VisionNode(Node):
         self.declare_parameter('gravity_alpha', 0.1)
         # 点云融合参数
         self.declare_parameter('use_pointcloud_fusion', True)
+        self.declare_parameter('fusion_adaptive_enable', True)
+        self.declare_parameter('fusion_disable_processing_ms', 140.0)
+        self.declare_parameter('fusion_enable_processing_ms', 95.0)
         self.declare_parameter('fusion_max_distance', 0.05)
         self.declare_parameter('fusion_min_confidence', 0.3)
         # 法向量估计参数
@@ -388,6 +395,9 @@ class R1VisionNode(Node):
             'gravity_alpha': self.get_parameter('gravity_alpha').value,
             # 点云融合参数
             'use_pointcloud_fusion': self.get_parameter('use_pointcloud_fusion').value,
+            'fusion_adaptive_enable': self.get_parameter('fusion_adaptive_enable').value,
+            'fusion_disable_processing_ms': float(self.get_parameter('fusion_disable_processing_ms').value),
+            'fusion_enable_processing_ms': float(self.get_parameter('fusion_enable_processing_ms').value),
             'fusion_max_distance': self.get_parameter('fusion_max_distance').value,
             'fusion_min_confidence': self.get_parameter('fusion_min_confidence').value,
             # 法向量估计参数
@@ -655,6 +665,8 @@ class R1VisionNode(Node):
             return
         
         start_time = time.time()
+
+        self._update_fusion_runtime_switch()
         
         try:
             # 图像转换
@@ -862,7 +874,7 @@ class R1VisionNode(Node):
 
         # ==================== 2. 点云融合（可选） ====================
         fused_lidar_points = lidar_points
-        if self.use_pointcloud_fusion and lidar_points is not None and len(lidar_points) > 0 and position_3d is not None:
+        if self._fusion_runtime_enabled and lidar_points is not None and len(lidar_points) > 0 and position_3d is not None:
             try:
                 # 从深度图生成相机点云（ROI区域）
                 camera_points = self._extract_camera_points_from_depth(
