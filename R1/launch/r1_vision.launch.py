@@ -43,6 +43,8 @@ def generate_launch_description():
             description='IMU话题（mid360）'),
         DeclareLaunchArgument('topic_odom', default_value='/Odometry',
             description='里程计话题'),
+        DeclareLaunchArgument('topic_camera_info', default_value='/camera/camera/color/camera_info',
+            description='相机内参话题'),
         DeclareLaunchArgument('sync_slop', default_value='0.03',
             description='时间同步容差（秒）'),
         DeclareLaunchArgument('lidar_msg_type', default_value='custom',
