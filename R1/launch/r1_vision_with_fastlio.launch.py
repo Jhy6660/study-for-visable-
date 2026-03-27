@@ -126,7 +126,7 @@ def generate_launch_description():
     )
     sync_slop_arg = DeclareLaunchArgument(
         'sync_slop',
-        default_value='0.05',
+        default_value='0.03',
         description='时间同步容差（秒）'
     )
     body_to_base_x_arg = DeclareLaunchArgument('body_to_base_x', default_value='0.0', description='body->base_link 平移x')

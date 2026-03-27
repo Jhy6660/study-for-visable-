@@ -45,7 +45,7 @@ def generate_launch_description():
             description='里程计话题'),
         DeclareLaunchArgument('topic_camera_info', default_value='/camera/camera/color/camera_info',
             description='相机内参话题'),
-        DeclareLaunchArgument('sync_slop', default_value='0.05',
+        DeclareLaunchArgument('sync_slop', default_value='0.03',
             description='时间同步容差（秒）'),
         DeclareLaunchArgument('lidar_msg_type', default_value='custom',
             description='雷达消息类型 (custom 或 pointcloud2)'),
