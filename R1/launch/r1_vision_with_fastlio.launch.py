@@ -89,6 +89,11 @@ def generate_launch_description():
         default_value='5',
         description='法向量平滑窗口大小'
     )
+    target_output_frame_arg = DeclareLaunchArgument(
+        'target_output_frame',
+        default_value='base_link',
+        description='最终下发坐标系（base_link/map/odom）'
+    )
     r1_config_file_arg = DeclareLaunchArgument(
         'r1_config_file',
         default_value=os.path.join(r1_vision_dir, 'config', 'tf_config.yaml'),
@@ -241,6 +246,7 @@ def generate_launch_description():
             'depth_window': LaunchConfiguration('depth_window'),
             'normal_window': LaunchConfiguration('normal_window'),
             'normal_window_size': LaunchConfiguration('normal_window_size'),
+            'target_output_frame': LaunchConfiguration('target_output_frame'),
             'r1_config_file': LaunchConfiguration('r1_config_file'),
             'fallback_send_without_tf': True,
             'use_sim_time': LaunchConfiguration('use_sim_time'),
@@ -271,6 +277,7 @@ def generate_launch_description():
         depth_window_arg,
         normal_window_arg,
         normal_window_size_arg,
+        target_output_frame_arg,
         r1_config_file_arg,
         topic_rgb_arg,
         topic_depth_arg,

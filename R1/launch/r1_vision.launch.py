@@ -53,6 +53,8 @@ def generate_launch_description():
             description='深度滤波窗口大小'),
         DeclareLaunchArgument('normal_window', default_value='7',
             description='法向量估计窗口大小'),
+        DeclareLaunchArgument('target_output_frame', default_value='base_link',
+            description='最终下发坐标系（base_link/map/odom）'),
     ]
 
     # RealSense 相机启动已移除（使用硬编码内参）
@@ -80,6 +82,7 @@ def generate_launch_description():
             'r1_config_file': LaunchConfiguration('r1_config_file'),
             'depth_window': LaunchConfiguration('depth_window'),
             'normal_window': LaunchConfiguration('normal_window'),
+            'target_output_frame': LaunchConfiguration('target_output_frame'),
             'variance_threshold': 100.0,
             'process_every_n_frames': 2,
             'log_every_n_sends': 10,

@@ -50,6 +50,7 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `process_every_n_frames`
 - `adaptive_frame_skip`
 - `target_processing_ms`
+- `target_output_frame`（默认 `base_link`，可改成 `map` / `odom`）
 
 ### 3.2 雷达预过滤（先控算力和噪声）
 - `lidar_prefilter_enable`（默认 true）
