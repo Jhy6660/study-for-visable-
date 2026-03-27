@@ -139,13 +139,6 @@ class R1VisionNode(Node):
         self._stable_grasp_counter = 0
         self._last_sent_grasp = None
         self._last_sent_normal = None
-        self.lidar_prefilter_enable = bool(params['lidar_prefilter_enable'])
-        self.lidar_min_range_m = float(params['lidar_min_range_m'])
-        self.lidar_max_range_m = float(params['lidar_max_range_m'])
-        self.lidar_max_abs_y_m = float(params['lidar_max_abs_y_m'])
-        self.lidar_max_abs_z_m = float(params['lidar_max_abs_z_m'])
-        self.lidar_voxel_enable = bool(params['lidar_voxel_enable'])
-        self.lidar_voxel_size = float(params['lidar_voxel_size'])
         
         # 性能控制
         self.frame_skip_count = 0
@@ -365,14 +358,6 @@ class R1VisionNode(Node):
         self.declare_parameter('grasp_confidence_threshold', 0.60)
         self.declare_parameter('grasp_min_confirm_frames', 2)
         self.declare_parameter('camera_only_confidence', 0.55)
-        # 雷达点云预过滤（先在雷达坐标系做简单空间裁剪，避免“全量点”进入后续流程）
-        self.declare_parameter('lidar_prefilter_enable', True)
-        self.declare_parameter('lidar_min_range_m', 0.2)
-        self.declare_parameter('lidar_max_range_m', 4.0)
-        self.declare_parameter('lidar_max_abs_y_m', 2.5)
-        self.declare_parameter('lidar_max_abs_z_m', 2.0)
-        self.declare_parameter('lidar_voxel_enable', True)
-        self.declare_parameter('lidar_voxel_size', 0.03)
         # TF缺失时是否降级发送camera_link坐标（而不丢弃）
         self.declare_parameter('fallback_send_without_tf', True)
         self.declare_parameter('lidar_msg_type', 'custom') # 'custom' for Livox CustomMsg, 'pointcloud2' for standard PointCloud2
@@ -445,13 +430,6 @@ class R1VisionNode(Node):
             'grasp_confidence_threshold': float(self.get_parameter('grasp_confidence_threshold').value),
             'grasp_min_confirm_frames': int(self.get_parameter('grasp_min_confirm_frames').value),
             'camera_only_confidence': float(self.get_parameter('camera_only_confidence').value),
-            'lidar_prefilter_enable': self.get_parameter('lidar_prefilter_enable').value,
-            'lidar_min_range_m': float(self.get_parameter('lidar_min_range_m').value),
-            'lidar_max_range_m': float(self.get_parameter('lidar_max_range_m').value),
-            'lidar_max_abs_y_m': float(self.get_parameter('lidar_max_abs_y_m').value),
-            'lidar_max_abs_z_m': float(self.get_parameter('lidar_max_abs_z_m').value),
-            'lidar_voxel_enable': self.get_parameter('lidar_voxel_enable').value,
-            'lidar_voxel_size': float(self.get_parameter('lidar_voxel_size').value),
             'fallback_send_without_tf': self.get_parameter('fallback_send_without_tf').value in (True, 'true', 'True', '1', 1),
             'lidar_msg_type': self.get_parameter('lidar_msg_type').value,
         }
@@ -742,7 +720,6 @@ class R1VisionNode(Node):
         # 先做雷达点云预过滤，避免全量点进入融合/定位流程
         if lidar_points_array is not None and len(lidar_points_array) > 0:
             lidar_points_array = self._prefilter_lidar_points(lidar_points_array)
-            lidar_points_array = self._voxel_downsample_points(lidar_points_array)
             if len(lidar_points_array) == 0:
                 self.get_logger().warn('雷达预过滤后无有效点，跳过本帧')
                 self._handle_no_detection(rgb_msg.header.stamp)
@@ -1252,50 +1229,6 @@ class R1VisionNode(Node):
         except Exception as e:
             self.get_logger().warn(f'雷达预过滤异常，回退原始点云: {e}')
             return lidar_points
-
-    def _voxel_downsample_points(self, points: np.ndarray) -> np.ndarray:
-        """体素降采样，进一步削减点数与抖动。"""
-        if not self.lidar_voxel_enable or points is None or len(points) == 0:
-            return points
-        voxel = max(self.lidar_voxel_size, 1e-4)
-        try:
-            grid = np.floor(points / voxel).astype(np.int32)
-            _, idx = np.unique(grid, axis=0, return_index=True)
-            down = points[np.sort(idx)]
-            self.get_logger().info(
-                f'体素降采样: {len(points)} -> {len(down)} 点 (voxel={voxel:.3f}m)',
-                throttle_duration_sec=1.0,
-            )
-            return down
-        except Exception as e:
-            self.get_logger().warn(f'体素降采样异常，回退原始点云: {e}')
-            return points
-
-    def _update_fusion_runtime_switch(self):
-        """根据最近平均处理时延动态开关点云融合，避免算力过载。"""
-        if not self.use_pointcloud_fusion:
-            self._fusion_runtime_enabled = False
-            return
-        if not self.fusion_adaptive_enable:
-            self._fusion_runtime_enabled = True
-            return
-
-        avg_ms = self.performance_monitor.get_avg_processing_time()
-        if avg_ms <= 1e-6:
-            return
-
-        if self._fusion_runtime_enabled and avg_ms > self.fusion_disable_processing_ms:
-            self._fusion_runtime_enabled = False
-            self.get_logger().warn(
-                f'自适应关闭点云融合: avg={avg_ms:.1f}ms > {self.fusion_disable_processing_ms:.1f}ms',
-                throttle_duration_sec=2.0,
-            )
-        elif (not self._fusion_runtime_enabled) and avg_ms < self.fusion_enable_processing_ms:
-            self._fusion_runtime_enabled = True
-            self.get_logger().info(
-                f'自适应恢复点云融合: avg={avg_ms:.1f}ms < {self.fusion_enable_processing_ms:.1f}ms',
-                throttle_duration_sec=2.0,
-            )
 
 
 def main(args=None):
