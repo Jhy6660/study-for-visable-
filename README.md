@@ -56,14 +56,9 @@ R1 Vision 是一个 ROS2 Python 视觉定位节点：
 - `lidar_max_range_m`（默认 4.0）
 - `lidar_max_abs_y_m`（默认 2.5）
 - `lidar_max_abs_z_m`（默认 2.0）
-- `lidar_voxel_enable`（默认 true）
-- `lidar_voxel_size`（默认 0.03m）
 
 ### 3.3 融合与几何
 - `use_pointcloud_fusion`
-- `fusion_adaptive_enable`（默认 true）
-- `fusion_disable_processing_ms`（默认 140）
-- `fusion_enable_processing_ms`（默认 95）
 - `fusion_max_distance`
 - `fusion_min_confidence`
 - `frustum_min_points`（默认 15）
